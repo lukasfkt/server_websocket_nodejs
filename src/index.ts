@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
 
 import { Server } from "socket.io";
 import http from "http";
@@ -13,6 +14,8 @@ const io = new Server(httpServer);
 
 const clients: Array<any> = [];
 const senhas: Array<string> = [];
+
+app.use(cors());
 
 type User = {
   id: string;
@@ -46,6 +49,19 @@ app.post(
     await db.push("/users[]", newUser);
 
     return response.status(201).json(newUser);
+  }
+);
+
+app.get(
+  "/user",
+  async (request: Request, response: Response): Promise<Response> => {
+    let userData = [];
+
+    try {
+      userData = await db.getData("/users");
+    } catch (error) {}
+
+    return response.status(201).json(userData);
   }
 );
 
