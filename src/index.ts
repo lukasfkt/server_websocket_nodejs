@@ -14,30 +14,40 @@ const io = new Server(httpServer);
 const clients: Array<any> = [];
 const senhas: Array<string> = [];
 
+type User = {
+  id: string;
+  name: string;
+  status: "queue" | "ready" | "onGoing" | "done";
+  senha: string;
+};
+
 var db = new JsonDB(new Config("jsonDB", true, false, "/"));
 
 app.use(express.json());
 
-app.post("/user", async (request: Request, response: Response) => {
-  const { name } = request.body;
+app.post(
+  "/user",
+  async (request: Request, response: Response): Promise<Response> => {
+    const { name } = request.body;
 
-  let userData = [];
+    let userData = [];
 
-  try {
-    userData = await db.getData("/users");
-  } catch (error) {}
+    try {
+      userData = await db.getData("/users");
+    } catch (error) {}
 
-  const newUser = {
-    id: uuidv4(),
-    name,
-    status: "queue",
-    senha: userData.length.toString().padStart(4, "0"),
-  };
+    const newUser: User = {
+      id: uuidv4(),
+      name,
+      status: "queue",
+      senha: userData.length.toString().padStart(4, "0"),
+    };
 
-  await db.push("/users[]", newUser);
+    await db.push("/users[]", newUser);
 
-  return response.status(201).json(newUser);
-});
+    return response.status(201).json(newUser);
+  }
+);
 
 io.on("connection", (client) => {
   console.log("Cliente conectado");
