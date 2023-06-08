@@ -4,7 +4,7 @@ import http from 'http';
 
 const PORT = 8899;
 const app = express();
-app.use(express.static(__dirname + '/../client'))
+// app.use(express.static(__dirname + '/../client'))
 const httpServer = http.createServer(app);
 const io = new Server(httpServer);
 
