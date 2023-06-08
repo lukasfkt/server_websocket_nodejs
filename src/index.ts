@@ -10,7 +10,9 @@ const PORT = 8899;
 const app = express();
 // app.use(express.static(__dirname + '/../client'))
 const httpServer = http.createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  cors: { origin: process.env.APP_WEB_URL, methods: ["GET", "POST"] },
+});
 
 const clients: Array<any> = [];
 const senhas: Array<string> = [];
@@ -47,6 +49,8 @@ app.post(
     };
 
     await db.push("/users[]", newUser);
+
+    io.emit("newUser");
 
     return response.status(201).json(newUser);
   }
