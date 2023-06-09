@@ -14,9 +14,6 @@ const io = new Server(httpServer, {
   cors: { origin: process.env.APP_WEB_URL, methods: ["GET", "POST"] },
 });
 
-const clients: Array<any> = [];
-const senhas: Array<string> = [];
-
 app.use(cors());
 
 type User = {
@@ -69,27 +66,34 @@ app.get(
   }
 );
 
+app.post(
+  "/user/:id",
+  async (request: Request, response: Response): Promise<Response> => {
+    const { status } = request.body;
+
+    const id = request.params.id;
+
+    try {
+      const userData = await db.getIndex("/users", id);
+
+      await db.push(`/users[${userData}]`, { status }, false);
+
+      io.emit("newUser");
+
+      const data = await db.getData("/users");
+
+      return response.status(201).json(data);
+    } catch (error) {}
+
+    return response.status(201).json();
+  }
+);
+
 io.on("connection", (client) => {
   console.log("Cliente conectado");
-  clients.push(client);
-
-  client.on("senhas", function (socket) {
-    for (const client of clients) {
-      client.emit("msg", senhas);
-    }
-  });
-
-  client.on("add", function (socket) {
-    senhas.push(socket.senha);
-  });
-
-  client.on("remove", function (socket) {
-    senhas.splice(senhas.indexOf(socket.senha), 1);
-  });
 
   client.on("disconnect", () => {
     console.log("Cliente desconectado");
-    clients.splice(clients.indexOf(client), 1);
   });
 });
 
