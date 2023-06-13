@@ -1,1 +1,20 @@
-{"users":[{"id":"d488380e-4cde-40ec-87be-17e0bc6b3177","name":"Lucas Tanaka","sector":"Massagem","status":"ready","senha":"0000"},{"id":"fd42a7e2-3c6c-4d6a-9475-9049c97d5ade","name":"Tutty","sector":"Saúde","status":"queue","senha":"0001"},{"id":"4dbd75e4-fdf6-4961-a34c-1f3223ed6908","name":"sdfsdfsf","sector":"Massagem","status":"queue","senha":"0002"},{"id":"faf505dc-e84c-44f7-aded-fe0ddf44582e","name":"sdfvbdbdf","sector":"Massagem","status":"queue","senha":"0003"},{"id":"16f1e811-c397-4626-bd3d-7137051ea801","name":"fgnfgnfng","sector":"Massagem","status":"queue","senha":"0004"},{"id":"650f52a0-ad0e-454f-9426-9674f4b5a128","name":"fghfhfgh","sector":"Massagem","status":"queue","senha":"0005"},{"id":"3ced43a7-49ac-4539-a674-40a4ee8d6098","name":"fngnfnf","sector":"Massagem","status":"queue","senha":"0006"},{"id":"0630a3d4-a413-448c-810e-e5f57ffcd8eb","name":"nghmgh","sector":"Massagem","status":"queue","senha":"0007"},{"id":"e936cfee-ba5b-489f-bae6-30bfeadfad4b","name":"bbbfbf","sector":"Saúde","status":"queue","senha":"0008"},{"id":"7bf294bb-bc0b-48ab-935c-f2f404979a0a","name":"asdfsf","sector":"Saúde","status":"queue","senha":"0009"}]}
+{
+  "users": [
+    {
+      "id": "1d19ddfb-0be6-4f59-9823-1fac9592db07",
+      "name": "Tutty",
+      "sector": "Massagem",
+      "status": "queue",
+      "senha": "0000",
+      "isPreferencial": false
+    },
+    {
+      "id": "e483a9b9-5d44-4558-a1f9-f2315a011b9d",
+      "name": "SAFSFS",
+      "sector": "Saúde",
+      "status": "queue",
+      "senha": "0001",
+      "isPreferencial": true
+    }
+  ]
+}
