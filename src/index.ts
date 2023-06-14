@@ -23,6 +23,7 @@ type User = {
   senha: string;
   sector: string;
   isPreferencial: boolean;
+  celphone?: number;
 };
 
 var db = new JsonDB(new Config("jsonDB", true, false, "/"));
@@ -32,7 +33,7 @@ app.use(express.json());
 app.post(
   "/user",
   async (request: Request, response: Response): Promise<Response> => {
-    const { name, sector, isPreferencial } = request.body;
+    const { name, sector, isPreferencial, celphone } = request.body;
 
     let userData = [];
 
@@ -47,6 +48,7 @@ app.post(
       status: "queue",
       senha: userData.length.toString().padStart(4, "0"),
       isPreferencial,
+      celphone,
     };
 
     await db.push("/users[]", newUser);
