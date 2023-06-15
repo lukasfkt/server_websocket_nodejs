@@ -24,6 +24,7 @@ type User = {
   sector: string;
   isPreferencial: boolean;
   celphone?: number;
+  email?: string;
 };
 
 var db = new JsonDB(new Config("jsonDB", true, false, "/"));
@@ -33,7 +34,7 @@ app.use(express.json());
 app.post(
   "/user",
   async (request: Request, response: Response): Promise<Response> => {
-    const { name, sector, isPreferencial, celphone } = request.body;
+    const { name, sector, isPreferencial, celphone, email } = request.body;
 
     let userData = [];
 
@@ -49,6 +50,7 @@ app.post(
       senha: userData.length.toString().padStart(4, "0"),
       isPreferencial,
       celphone,
+      email,
     };
 
     await db.push("/users[]", newUser);
