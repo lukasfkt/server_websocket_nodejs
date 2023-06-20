@@ -19,7 +19,7 @@ app.use(cors());
 type User = {
   id: string;
   name: string;
-  status: "queue" | "ready" | "onGoing" | "done";
+  status: "queue" | "ready" | "onGoing" | "done" | "canceled";
   senha: string;
   sector: string;
   isPreferencial: boolean;
@@ -42,12 +42,21 @@ app.post(
       userData = await db.getData("/users");
     } catch (error) {}
 
+    var senhaNumero = userData.length + 1;
+    const fator = Math.floor(senhaNumero / 1000);
+
+    if (senhaNumero >= 1000) {
+      senhaNumero = senhaNumero - 1000 * fator + 1;
+    }
+
+    const senha = senhaNumero.toString().padStart(3, "0");
+
     const newUser: User = {
       id: uuidv4(),
       name,
       sector,
       status: "queue",
-      senha: userData.length.toString().padStart(4, "0"),
+      senha,
       isPreferencial,
       celphone,
       email,
