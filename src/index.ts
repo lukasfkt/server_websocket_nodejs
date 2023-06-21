@@ -25,6 +25,7 @@ type User = {
   isPreferencial: boolean;
   celphone?: number;
   email?: string;
+  updatedAt: string;
 };
 
 var db = new JsonDB(new Config("jsonDB", true, false, "/"));
@@ -50,6 +51,9 @@ app.post(
     }
 
     const senha = senhaNumero.toString().padStart(3, "0");
+    const nowDt = new Date().toLocaleTimeString("pt-br", {
+      timeZone: "America/Sao_Paulo",
+    });
 
     const newUser: User = {
       id: uuidv4(),
@@ -60,6 +64,7 @@ app.post(
       isPreferencial,
       celphone,
       email,
+      updatedAt: nowDt,
     };
 
     await db.push("/users[]", newUser);
@@ -92,8 +97,11 @@ app.post(
 
     try {
       const userData = await db.getIndex("/users", id);
+      const nowDt = new Date().toLocaleTimeString("pt-br", {
+        timeZone: "America/Sao_Paulo",
+      });
 
-      await db.push(`/users[${userData}]`, { status }, false);
+      await db.push(`/users[${userData}]`, { status, updatedAt: nowDt }, false);
 
       io.emit("newUser");
 
