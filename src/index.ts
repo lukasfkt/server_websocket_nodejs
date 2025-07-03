@@ -1,116 +1,127 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
-
 import { Server } from "socket.io";
 import http from "http";
-import { JsonDB, Config } from "node-json-db";
-const { v4: uuidv4 } = require("uuid");
+import { PrismaClient } from "@prisma/client";
 
 const PORT = 8899;
 const app = express();
-// app.use(express.static(__dirname + '/../client'))
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: process.env.APP_WEB_URL, methods: ["GET", "POST"] },
 });
 
+const prisma = new PrismaClient();
+
 app.use(cors());
-
-type User = {
-  id: string;
-  name: string;
-  status: "queue" | "ready" | "onGoing" | "done" | "canceled";
-  senha: string;
-  sector: string;
-  isPreferencial: boolean;
-  celphone?: number;
-  email?: string;
-  updatedAt: string;
-};
-
-var db = new JsonDB(new Config("jsonDB", true, false, "/"));
-
 app.use(express.json());
+
+type UserStatus = "queue" | "ready" | "onGoing" | "done" | "canceled";
 
 app.post(
   "/user",
   async (request: Request, response: Response): Promise<Response> => {
-    const { name, sector, isPreferencial, celphone, email } = request.body;
-
-    let userData = [];
-
     try {
-      userData = await db.getData("/users");
-    } catch (error) {}
+      const { name, sector, isPreferencial, celphone, email } = request.body;
 
-    var senhaNumero = userData.length + 1;
-    const fator = Math.floor(senhaNumero / 1000);
+      // Get today's date at midnight (São Paulo timezone)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    if (senhaNumero >= 1000) {
-      senhaNumero = senhaNumero - 1000 * fator + 1;
+      // Count users created today
+      const usersCountToday = await prisma.user.count({
+        where: {
+          senhaDate: {
+            gte: today,
+          },
+        },
+      });
+
+      // Password number starts from 1 each day
+      let senhaNumero = usersCountToday + 1;
+      const fator = Math.floor(senhaNumero / 1000);
+
+      if (senhaNumero >= 1000) {
+        senhaNumero = senhaNumero - 1000 * fator + 1;
+      }
+
+      const senha = senhaNumero.toString().padStart(3, "0");
+
+      const newUser = await prisma.user.create({
+        data: {
+          name,
+          sector,
+          senha,
+          isPreferencial: isPreferencial || false,
+          celphone: celphone ? String(celphone) : null,
+          email: email || null,
+          senhaDate: new Date(), // Store the current date/time
+        },
+      });
+
+      io.emit("newUser");
+
+      return response.status(201).json(newUser);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      return response.status(500).json({ error: "Failed to create user" });
     }
-
-    const senha = senhaNumero.toString().padStart(3, "0");
-    const nowDt = new Date().toLocaleTimeString("pt-br", {
-      timeZone: "America/Sao_Paulo",
-    });
-
-    const newUser: User = {
-      id: uuidv4(),
-      name,
-      sector,
-      status: "queue",
-      senha,
-      isPreferencial,
-      celphone,
-      email,
-      updatedAt: nowDt,
-    };
-
-    await db.push("/users[]", newUser);
-
-    io.emit("newUser");
-
-    return response.status(201).json(newUser);
   }
 );
 
 app.get(
   "/user",
   async (request: Request, response: Response): Promise<Response> => {
-    let userData = [];
-
     try {
-      userData = await db.getData("/users");
-    } catch (error) {}
+      const users = await prisma.user.findMany({
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
 
-    return response.status(201).json(userData);
+      return response.status(200).json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      return response.status(500).json({ error: "Failed to fetch users" });
+    }
   }
 );
 
 app.post(
   "/user/:id",
   async (request: Request, response: Response): Promise<Response> => {
-    const { status } = request.body;
-
-    const id = request.params.id;
-
     try {
-      const userData = await db.getIndex("/users", id);
-      const nowDt = new Date().toLocaleTimeString("pt-br", {
-        timeZone: "America/Sao_Paulo",
-      });
+      const { status } = request.body;
+      const id = request.params.id;
 
-      await db.push(`/users[${userData}]`, { status, updatedAt: nowDt }, false);
+      const validStatuses: UserStatus[] = ["queue", "ready", "onGoing", "done", "canceled"];
+      
+      if (!validStatuses.includes(status)) {
+        return response.status(400).json({ error: "Invalid status" });
+      }
+
+      await prisma.user.update({
+        where: {
+          id: id,
+        },
+        data: {
+          status: status,
+        },
+      });
 
       io.emit("newUser");
 
-      const data = await db.getData("/users");
+      const users = await prisma.user.findMany({
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
 
-      return response.status(201).json(data);
-    } catch (error) {}
-
-    return response.status(201).json();
+      return response.status(200).json(users);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      return response.status(500).json({ error: "Failed to update user" });
+    }
   }
 );
 
@@ -122,6 +133,30 @@ io.on("connection", (client) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Server started at ${PORT}`);
+async function main() {
+  try {
+    await prisma.$connect();
+    console.log("Database connected successfully");
+    
+    httpServer.listen(PORT, () => {
+      console.log(`Server started at ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect to database:", error);
+    process.exit(1);
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+
+process.on("SIGINT", async () => {
+  await prisma.$disconnect();
+  process.exit(0);
 });

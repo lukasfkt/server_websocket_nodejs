@@ -1,2 +1,8 @@
 node_modules
 build
+/src/generated/prisma
+.env
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
