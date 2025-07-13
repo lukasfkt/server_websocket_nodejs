@@ -24,6 +24,25 @@ app.post(
     try {
       const { name, sector, isPreferencial, celphone, email } = request.body;
 
+      // Check if the last user has the same name and sector
+      const lastUser = await prisma.user.findFirst({
+        where: {
+          name,
+          sector,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (lastUser) {
+        // Return the existing user's senha
+        return response.status(200).json({
+          ...lastUser,
+          message: "User already exists, returning existing senha",
+        });
+      }
+
       // Get today's date at midnight (São Paulo timezone)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
