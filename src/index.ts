@@ -24,18 +24,16 @@ app.post(
     try {
       const { name, sector, isPreferencial, celphone, email } = request.body;
 
-      // Check if the last user has the same name and sector
-      const lastUser = await prisma.user.findFirst({
-        where: {
-          name,
-          sector,
-        },
+      const users = await prisma.user.findMany({
         orderBy: {
           createdAt: 'desc',
         },
+        take: 1,
       });
 
-      if (lastUser) {
+      const lastUser = users[0];
+
+      if (lastUser.name === name && lastUser.sector === sector) {
         // Return the existing user's senha
         return response.status(200).json({
           ...lastUser,
