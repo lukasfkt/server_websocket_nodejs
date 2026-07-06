@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "npx nodemon",
-    "build": "npx tsc --rootDir src --outDir build"
+    "build": "npx tsc --rootDir src --outDir build",
+    "start": "npx prisma migrate deploy && node src/index.ts"
   },
   "author": "",
   "license": "ISC",
