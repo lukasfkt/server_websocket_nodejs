@@ -98,7 +98,8 @@ app.post(
 
       // Dedupe only within the current day: same name+sector already
       // registered today returns the existing senha. A client coming back
-      // on another day gets a fresh senha.
+      // on another day gets a fresh senha. (Supersedes the "last created
+      // user" guard from `fix find user`, which crashed on an empty table.)
       const lastUser = await prisma.user.findFirst({
         where: {
           name,
