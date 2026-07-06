@@ -1,9 +1,9 @@
-import express, { Request, Response } from "express";
-import cors, { CorsOptions } from "cors";
+import express, { type Request, type Response } from "express";
+import cors, { type CorsOptions } from "cors";
 import compression from "compression";
 import { Server } from "socket.io";
 import http from "http";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 
 const PORT = 8899;
 const app = express();
