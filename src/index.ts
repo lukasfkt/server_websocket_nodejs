@@ -290,6 +290,34 @@ app.post(
   }
 );
 
+// Toggle the "preferencial" flag of a user. Body: { isPreferencial: boolean }.
+app.post(
+  "/user/:id/preferencial",
+  async (request: Request, response: Response): Promise<Response> => {
+    try {
+      const id = request.params.id;
+      const { isPreferencial } = request.body;
+
+      if (typeof isPreferencial !== "boolean") {
+        return response.status(400).json({ error: "Invalid isPreferencial" });
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data: { isPreferencial },
+      });
+
+      const users = await getQueueUsers();
+      io.emit("usersUpdated", users);
+
+      return response.status(200).json(users);
+    } catch (error) {
+      console.error("Error updating preferencial:", error);
+      return response.status(500).json({ error: "Failed to update user" });
+    }
+  }
+);
+
 io.on("connection", (client) => {
   console.log("Cliente conectado");
 
