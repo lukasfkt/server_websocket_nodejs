@@ -8,7 +8,7 @@
     "dev": "npx nodemon",
     "build": "npx tsc --rootDir src --outDir build",
     "fix-dates": "node src/fix-date-types.ts",
-    "start": "npx prisma migrate deploy && (node src/fix-date-types.ts || true) && node src/index.ts"
+    "start": "npx prisma migrate deploy && node src/index.ts"
   },
   "author": "",
   "license": "ISC",
