@@ -4,7 +4,6 @@ import compression from "compression";
 import { Server } from "socket.io";
 import http from "http";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { normalizeDateColumns } from "./normalizeDates";
 
 const PORT = 8899;
 const app = express();
@@ -100,17 +99,6 @@ async function getQueueUsers() {
     select: QUEUE_SELECT,
     take: 500,
   });
-}
-
-// Seats blocked today (e.g. a companion sitting on a chair), as a sorted list
-// of seat indices. Day-scoped so blocks don't linger into the next day.
-async function getBlockedSeats(): Promise<number[]> {
-  const rows = await prisma.seatBlock.findMany({
-    where: { blockedDate: { gte: startOfToday() } },
-    select: { seat: true },
-    orderBy: { seat: "asc" },
-  });
-  return rows.map((row) => row.seat);
 }
 
 app.post(
@@ -277,14 +265,6 @@ app.post(
             .status(400)
             .json({ error: "Seats are available for Massagem only" });
         }
-        // Can't place a user on a chair that's blocked today.
-        const blocked = await prisma.seatBlock.findFirst({
-          where: { seat: parsedSeat, blockedDate: { gte: startOfToday() } },
-          select: { seat: true },
-        });
-        if (blocked) {
-          return response.status(409).json({ error: "Seat is blocked" });
-        }
         seatValue = parsedSeat;
       }
 
@@ -310,89 +290,6 @@ app.post(
   }
 );
 
-// Toggle the "preferencial" flag of a user. Body: { isPreferencial: boolean }.
-app.post(
-  "/user/:id/preferencial",
-  async (request: Request, response: Response): Promise<Response> => {
-    try {
-      const id = request.params.id;
-      const { isPreferencial } = request.body;
-
-      if (typeof isPreferencial !== "boolean") {
-        return response.status(400).json({ error: "Invalid isPreferencial" });
-      }
-
-      await prisma.user.update({
-        where: { id },
-        data: { isPreferencial },
-      });
-
-      const users = await getQueueUsers();
-      io.emit("usersUpdated", users);
-
-      return response.status(200).json(users);
-    } catch (error) {
-      console.error("Error updating preferencial:", error);
-      return response.status(500).json({ error: "Failed to update user" });
-    }
-  }
-);
-
-// Current blocked chairs (today).
-app.get(
-  "/seat",
-  async (_request: Request, response: Response): Promise<Response> => {
-    try {
-      return response.status(200).json(await getBlockedSeats());
-    } catch (error) {
-      console.error("Error fetching blocked seats:", error);
-      return response.status(500).json({ error: "Failed to fetch seats" });
-    }
-  }
-);
-
-// Block or unblock a chair. Body: { blocked: boolean }.
-app.post(
-  "/seat/:index",
-  async (request: Request, response: Response): Promise<Response> => {
-    try {
-      const seat = Number(request.params.index);
-      const { blocked } = request.body;
-
-      if (!Number.isInteger(seat) || seat < 0 || seat >= SEAT_COUNT) {
-        return response.status(400).json({ error: "Invalid seat" });
-      }
-
-      if (blocked) {
-        // Refuse to block a chair a waiting user is already sitting on today.
-        const occupied = await prisma.user.findFirst({
-          where: { status: "waiting", seat, senhaDate: { gte: startOfToday() } },
-          select: { id: true },
-        });
-        if (occupied) {
-          return response.status(409).json({ error: "Seat is occupied" });
-        }
-        // Upsert refreshes blockedDate so the block counts for today.
-        await prisma.seatBlock.upsert({
-          where: { seat },
-          update: { blockedDate: new Date() },
-          create: { seat },
-        });
-      } else {
-        await prisma.seatBlock.deleteMany({ where: { seat } });
-      }
-
-      const blockedSeats = await getBlockedSeats();
-      io.emit("seatsUpdated", blockedSeats);
-
-      return response.status(200).json(blockedSeats);
-    } catch (error) {
-      console.error("Error updating seat:", error);
-      return response.status(500).json({ error: "Failed to update seat" });
-    }
-  }
-);
-
 io.on("connection", (client) => {
   console.log("Cliente conectado");
 
@@ -408,20 +305,6 @@ async function main() {
     // PRAGMA returns a row, so use queryRaw (executeRaw rejects results on SQLite).
     await prisma.$queryRawUnsafe("PRAGMA journal_mode=WAL;");
     console.log("Database connected successfully");
-
-    // Self-heal any legacy rows whose date columns are stored as TEXT (see
-    // normalizeDates). Never blocks startup: a failure here is logged and the
-    // server still boots.
-    try {
-      const result = await normalizeDateColumns(prisma);
-      if (result.fixed > 0 || result.skipped > 0) {
-        console.log(
-          `[normalizeDates] fixed ${result.fixed}, skipped ${result.skipped}`
-        );
-      }
-    } catch (error) {
-      console.error("[normalizeDates] failed (continuing to boot):", error);
-    }
 
     httpServer.listen(PORT, () => {
       console.log(`Server started at ${PORT}`);

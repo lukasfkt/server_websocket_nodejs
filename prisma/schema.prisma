@@ -29,12 +29,3 @@ model User {
   @@index([status]) // filtro da listagem
   @@index([createdAt]) // ordenação das listagens
 }
-
-// A manually blocked chair (e.g. a companion sitting on it) — no senha, not in
-// the queue. One row per blocked seat; day-scoped like the rest of the app.
-model SeatBlock {
-  seat        Int      @id // cadeira 0-15
-  blockedDate DateTime @default(now())
-
-  @@index([blockedDate])
-}
