@@ -19,6 +19,7 @@ model User {
   isPreferencial Boolean  @default(false)
   celphone       String?
   email          String?
+  seat           Int? // cadeira (0-15) ocupada quando status = "waiting"
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   senhaDate      DateTime @default(now()) // Track the date when senha was assigned

@@ -50,11 +50,17 @@ app.use(compression());
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
-type UserStatus = "queue" | "ready" | "onGoing" | "done" | "canceled";
+type UserStatus = "queue" | "ready" | "waiting" | "onGoing" | "done" | "canceled";
+
+// Window used to collapse an accidental double-submit (same person's form sent
+// twice, e.g. a double click or a client retry) into a single senha. It must
+// stay short: two genuinely different people with the same name+sector must
+// each get their own senha.
+const DEDUPE_WINDOW_MS = 30 * 1000;
 
 // Statuses shown by the live screens (Painel/Admin). Anything else
 // (done/canceled) is dropped from the payload so the list stays small.
-const ACTIVE_STATUSES: UserStatus[] = ["queue", "ready", "onGoing"];
+const ACTIVE_STATUSES: UserStatus[] = ["queue", "ready", "waiting", "onGoing"];
 
 // Only the columns the UI actually renders.
 const QUEUE_SELECT = {
@@ -65,8 +71,14 @@ const QUEUE_SELECT = {
   status: true,
   isPreferencial: true,
   celphone: true,
+  seat: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
+
+// The "waiting" (Na cadeira) grid has 16 fixed seats, numbered 0-15.
+// The chairs are physical massage chairs, so only this sector may use them.
+const SEAT_COUNT = 16;
+const SEAT_SECTOR = "Massagem";
 
 // Start of the current day in the server's local timezone.
 function startOfToday(): Date {
@@ -96,16 +108,16 @@ app.post(
       const { name, sector, isPreferencial, celphone } = request.body;
       const today = startOfToday();
 
-      // Dedupe only within the current day: same name+sector already
-      // registered today returns the existing senha. A client coming back
-      // on another day gets a fresh senha. (Supersedes the "last created
-      // user" guard from `fix find user`, which crashed on an empty table.)
+      // Dedupe only an accidental double-submit: same name+sector registered in
+      // the last few seconds returns the existing senha. This guards against a
+      // duplicate request for the SAME person (double click / retry) — two
+      // different people sharing a name still each get their own senha.
       const lastUser = await prisma.user.findFirst({
         where: {
           name,
           sector,
           senhaDate: {
-            gte: today,
+            gte: new Date(Date.now() - DEDUPE_WINDOW_MS),
           },
         },
         orderBy: {
@@ -169,17 +181,91 @@ app.get(
   }
 );
 
+// Statuses that leave the live board and land in the history tab.
+const HISTORY_STATUSES: UserStatus[] = ["done", "canceled"];
+const HISTORY_PAGE_SIZE = 20;
+
+// Paginated list of finished/canceled entries for the Admin history tab.
+// Newest first, optional case-insensitive search over name and senha.
+app.get(
+  "/user/history",
+  async (request: Request, response: Response): Promise<Response> => {
+    try {
+      const page = Math.max(1, Number(request.query.page) || 1);
+      const search = String(request.query.search ?? "").trim();
+
+      // Scoped to today, like the rest of the app (senhas reset each day),
+      // so yesterday's finished/canceled entries don't leak into the list.
+      const where: Prisma.UserWhereInput = {
+        status: { in: HISTORY_STATUSES },
+        senhaDate: { gte: startOfToday() },
+      };
+      if (search) {
+        where.OR = [
+          { name: { contains: search } },
+          { senha: { contains: search } },
+        ];
+      }
+
+      const [items, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          orderBy: { updatedAt: "desc" },
+          select: QUEUE_SELECT,
+          skip: (page - 1) * HISTORY_PAGE_SIZE,
+          take: HISTORY_PAGE_SIZE,
+        }),
+        prisma.user.count({ where }),
+      ]);
+
+      return response.status(200).json({
+        items,
+        total,
+        page,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+    } catch (error) {
+      console.error("Error fetching history:", error);
+      return response.status(500).json({ error: "Failed to fetch history" });
+    }
+  }
+);
+
 app.post(
   "/user/:id",
   async (request: Request, response: Response): Promise<Response> => {
     try {
-      const { status } = request.body;
+      const { status, seat } = request.body;
       const id = request.params.id;
 
-      const validStatuses: UserStatus[] = ["queue", "ready", "onGoing", "done", "canceled"];
+      const validStatuses: UserStatus[] = ["queue", "ready", "waiting", "onGoing", "done", "canceled"];
 
       if (!validStatuses.includes(status)) {
         return response.status(400).json({ error: "Invalid status" });
+      }
+
+      // A seat only makes sense while "waiting"; any other status clears it so
+      // the chair frees up. When waiting, the seat must be a valid 0-15 slot.
+      let seatValue: number | null = null;
+      if (status === "waiting") {
+        const parsedSeat = Number(seat);
+        if (!Number.isInteger(parsedSeat) || parsedSeat < 0 || parsedSeat >= SEAT_COUNT) {
+          return response.status(400).json({ error: "Invalid seat" });
+        }
+        // The chairs belong to the massage area only.
+        const existing = await prisma.user.findUnique({
+          where: { id },
+          select: { sector: true },
+        });
+        if (!existing) {
+          return response.status(404).json({ error: "User not found" });
+        }
+        if (existing.sector !== SEAT_SECTOR) {
+          return response
+            .status(400)
+            .json({ error: "Seats are available for Massagem only" });
+        }
+        seatValue = parsedSeat;
       }
 
       await prisma.user.update({
@@ -188,6 +274,7 @@ app.post(
         },
         data: {
           status: status,
+          seat: seatValue,
         },
       });
 
